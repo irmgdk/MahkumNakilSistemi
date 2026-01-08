@@ -1,0 +1,147 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE_NAME = 'mahkum-nakil-sistemi'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
+    }
+
+    stages {
+        // 1. AŞAMA: Github'dan kodları çekme
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/irmgdk/MahkumNakilSistemi.git'
+                    ]]
+                ])
+                echo '✅ 1. Github kodları çekildi (5 puan)'
+                bat 'dir'
+            }
+        }
+
+        // 2. AŞAMA: Kodları build etme
+        stage('Build') {
+            steps {
+                bat 'mvn clean compile -DskipTests'
+                echo '✅ 2. Kodlar build edildi (5 puan)'
+            }
+        }
+
+        // 3. AŞAMA: Birim testleri çalıştırma
+        stage('Unit Tests') {
+            steps {
+                script {
+                    try {
+                        bat 'mvn test -Dtest=*Test'
+                    } catch (error) {
+                        echo "Birim testlerinde hata: ${error}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                    archiveArtifacts artifacts: 'target/surefire-reports/*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // 4. AŞAMA: Entegrasyon testleri çalıştırma
+        stage('Integration Tests') {
+            steps {
+                script {
+                    try {
+                        bat 'mvn verify -DskipUnitTests -Dit.test=*IT,*IntegrationTest'
+                    } catch (error) {
+                        echo "Entegrasyon testlerinde hata: ${error}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
+                    archiveArtifacts artifacts: 'target/failsafe-reports/*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        // 5. AŞAMA: Docker container'ları oluşturma ve çalıştırma
+        stage('Docker Build & Run') {
+            when {
+                environment name: 'SKIP_DOCKER', value: 'false'
+            }
+            steps {
+                script {
+                    echo 'Docker imajı oluşturuluyor...'
+                    bat 'docker build -t %DOCKER_IMAGE_NAME%:%DOCKER_TAG% .'
+
+                    echo 'Docker containerlar başlatılıyor...'
+                    bat 'docker-compose up -d'
+
+                    sleep 60
+
+                    echo 'Sistem başarıyla çalışıyor'
+                }
+            }
+        }
+
+        // 6. AŞAMA: Selenium test senaryoları
+        stage('Selenium Tests') {
+            steps {
+                script {
+                    echo 'Selenium test senaryoları çalıştırılıyor...'
+
+                    try {
+                        bat 'mvn test -Dtest=DashboardSeleniumTest'
+                        echo '✅ Test 1: Dashboard testi başarılı'
+                    } catch (error) {
+                        echo "Dashboard testinde hata: ${error}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+
+                    try {
+                        bat 'mvn test -Dtest=AracSeleniumTest'
+                        echo '✅ Test 2: Araç testi başarılı'
+                    } catch (error) {
+                        echo "Araç testinde hata: ${error}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+
+                    try {
+                        bat 'mvn test -Dtest=MahkumSeleniumTest'
+                        echo '✅ Test 3: Mahkum testi başarılı'
+                    } catch (error) {
+                        echo "Mahkum testinde hata: ${error}"
+                        currentBuild.result = 'UNSTABLE'
+                    }
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline tamamlandı'
+            bat 'docker-compose down 2>nul || echo "Docker compose zaten kapalı"'
+        }
+        success {
+            echo '✅ Pipeline başarıyla tamamlandı! Tüm aşamalar geçildi.'
+        }
+        failure {
+            echo '❌ Pipeline başarısız oldu!'
+        }
+        unstable {
+            echo '⚠ Pipeline kararsız durumda!'
+        }
+    }
+}

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Otomatik Simülasyon - Akıllı Mahkum Nakil Sistemi</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+
+  <style>
+    body {
+        padding-top: 56px;
+        background-color: #f8f9fa;
+    }
+    .navbar {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .card {
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        border-radius: 10px;
+    }
+    .simulasyon-animation {
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" th:href="@{/}">
+      <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/dashboard}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+            <i class="bi bi-truck"></i> Görevler
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" th:href="@{/gps/track/} + ${gorev.id}">
+            <i class="bi bi-geo-alt"></i> GPS Takip
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+      <i class="bi bi-robot"></i> Otomatik Simülasyon
+      <span class="badge bg-primary ms-2">OTOMATİK</span>
+    </h1>
+    <div>
+      <a th:href="@{/gps/track/} + ${gorev.id}" class="btn btn-outline-primary">
+        <i class="bi bi-arrow-left"></i> Takip Ekranına Dön
+      </a>
+      <a th:href="@{/gps/canli/} + ${gorev.id}" class="btn btn-success ms-2">
+        <i class="bi bi-wifi"></i> Canlı Takip (Hoca)
+      </a>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-8 offset-md-2">
+      <div class="card simulasyon-animation">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">
+            <i class="bi bi-play-circle"></i> Otomatik Simülasyon Başlat
+          </h5>
+        </div>
+        <div class="card-body text-center">
+          <div class="mb-4">
+            <i class="bi bi-truck display-1 text-primary"></i>
+            <h3 class="mt-3">Görev #<span th:text="${gorev.id}">1</span></h3>
+            <p class="lead">
+              <strong th:text="${gorev.baslangicNoktasi}">Silivri</strong> →
+              <strong th:text="${gorev.varisNoktasi}">Kartal</strong>
+            </p>
+          </div>
+
+          <div class="row mb-4">
+            <div class="col-md-6 mb-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">
+                    <i class="bi bi-geo-alt-fill text-success"></i> Başlangıç
+                  </h5>
+                  <p class="mb-1"><strong>Cezaevi:</strong> <span th:text="${gorev.baslangicNoktasi}">Silivri</span></p>
+                  <p class="mb-1"><strong>Koordinat:</strong> 41.0730, 28.2460</p>
+                  <p class="mb-0"><strong>Mahkum Sayısı:</strong> <span th:text="${gorev.mahkumlar.size()}">5</span></p>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <div class="card h-100">
+                <div class="card-body">
+                  <h5 class="card-title">
+                    <i class="bi bi-geo-alt-fill text-danger"></i> Varış
+                  </h5>
+                  <p class="mb-1"><strong>Cezaevi:</strong> <span th:text="${gorev.varisNoktasi}">Kartal</span></p>
+                  <p class="mb-1"><strong>Koordinat:</strong> 40.9100, 29.1800</p>
+                  <p class="mb-0"><strong>Mesafe:</strong> ~65 km</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i>
+            <strong>Otomatik Simülasyon Özellikleri:</strong>
+            <ul class="mb-0 mt-2">
+              <li>Araç otomatik olarak başlangıçtan varışa hareket eder</li>
+              <li>Her 30 saniyede bir konum otomatik güncellenir</li>
+              <li>Hız limiti kontrolü otomatik yapılır</li>
+              <li>Varış noktasına ulaşıldığında görev otomatik tamamlanır</li>
+              <li>Görev durumu otomatik olarak güncellenir</li>
+            </ul>
+          </div>
+
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i>
+            <strong>Dikkat:</strong> Simülasyon başlatıldıktan sonra araç otomatik hareket edecek
+            ve süreci takip ekranından izleyebilirsiniz. İşlem otomatik olarak tamamlanacaktır.
+          </div>
+
+          <div class="d-grid gap-2">
+            <button id="otomatikBaslatBtn" class="btn btn-primary btn-lg py-3">
+              <i class="bi bi-play-fill"></i> OTOMATİK SİMÜLASYONU BAŞLAT
+            </button>
+            <a th:href="@{/gps/track/} + ${gorev.id}" class="btn btn-outline-secondary">
+              <i class="bi bi-eye"></i> Takip Ekranında İzle
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+      const otomatikBaslatBtn = document.getElementById('otomatikBaslatBtn');
+      const gorevId = [[${gorev.id}]];
+
+      otomatikBaslatBtn.addEventListener('click', function() {
+          otomatikBaslatBtn.disabled = true;
+          otomatikBaslatBtn.innerHTML =
+              '<i class="bi bi-hourglass-split"></i> SİMÜLASYON BAŞLATILIYOR...';
+
+          fetch(`/gps/otomatik/baslat/${gorevId}`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              }
+          })
+          .then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  alert('✅ ' + data.message);
+                  // Takip sayfasına yönlendir
+                  window.location.href = `/gps/track/${gorevId}`;
+              } else {
+                  throw new Error(data.error);
+              }
+          })
+          .catch(error => {
+              console.error('Simülasyon başlatılırken hata:', error);
+              alert('❌ Simülasyon başlatılamadı: ' + error.message);
+              otomatikBaslatBtn.disabled = false;
+              otomatikBaslatBtn.innerHTML =
+                  '<i class="bi bi-play-fill"></i> OTOMATİK SİMÜLASYONU BAŞLAT';
+          });
+      });
+  });
+</script>
+</body>
+</html>

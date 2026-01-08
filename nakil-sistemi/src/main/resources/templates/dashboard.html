@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${pageTitle}">Dashboard - Akıllı Mahkum Nakil Sistemi</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+
+    <style>
+        body {
+            padding-top: 56px;
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 20px 0 0;
+            box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+            width: 250px;
+            background-color: #fff;
+        }
+        .main-content {
+            margin-left: 250px;
+            padding: 30px;
+        }
+        .stat-card {
+            transition: transform 0.3s;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-radius: 10px;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .completed-gorev-card {
+            border-left: 5px solid #28a745;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+        }
+        .completed-gorev-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" th:href="@{/}">
+            <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link active" th:href="@{/dashboard}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/mahkum/list}">
+                        <i class="bi bi-people"></i> Mahkumlar
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+                        <i class="bi bi-truck"></i> Görevler
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/ihlal/list}">
+                        <i class="bi bi-exclamation-triangle"></i> İhlaller
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="list-group list-group-flush">
+        <a th:href="@{/mahkum/list}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-people me-2"></i> Mahkumlar
+        </a>
+        <a th:href="@{/arac/list}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-truck me-2"></i> Araçlar
+        </a>
+        <a th:href="@{/nakil-gorevi/list}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-clipboard-check me-2"></i> Nakil Görevleri
+        </a>
+        <a th:href="@{/ihlal/list}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-exclamation-triangle me-2"></i> İhlaller
+        </a>
+        <div class="list-group-item border-0 mt-3">
+            <small class="text-muted">Hızlı İşlemler</small>
+        </div>
+        <a th:href="@{/mahkum/add}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-person-plus me-2"></i> Yeni Mahkum
+        </a>
+        <a th:href="@{/arac/add}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-truck me-2"></i> Yeni Araç
+        </a>
+        <a th:href="@{/nakil-gorevi/add}" class="list-group-item list-group-item-action border-0">
+            <i class="bi bi-clipboard-plus me-2"></i> Yeni Görev
+        </a>
+    </div>
+</div>
+
+<!-- Main Content -->
+<main class="main-content">
+    <h1 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h1>
+
+    <div th:if="${message}" class="alert alert-info alert-dismissible fade show" role="alert">
+        <span th:text="${message}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <!-- İstatistik Kartları -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card text-white bg-primary stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title">Toplam Mahkum</h5>
+                            <h2 class="card-text" th:text="${toplamMahkum}">0</h2>
+                        </div>
+                        <i class="bi bi-people" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card text-white bg-success stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title">Toplam Araç</h5>
+                            <h2 class="card-text" th:text="${toplamArac}">0</h2>
+                        </div>
+                        <i class="bi bi-truck" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card text-white bg-info stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title">Toplam Görev</h5>
+                            <h2 class="card-text" th:text="${toplamGorev}">0</h2>
+                        </div>
+                        <i class="bi bi-clipboard-check" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card text-white bg-warning stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title">Toplam İhlal</h5>
+                            <h2 class="card-text" th:text="${toplamIhlal}">0</h2>
+                        </div>
+                        <i class="bi bi-exclamation-triangle" style="font-size: 2.5rem;"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Üç Kolon: Aktif Görevler, Tamamlanan Görevler ve Son İhlaller -->
+    <div class="row">
+        <!-- Aktif Görevler -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0"><i class="bi bi-truck"></i> Aktif Nakil Görevleri</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${aktifGorevler != null and !aktifGorevler.isEmpty()}">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Güzergah</th>
+                                    <th>Araç</th>
+                                    <th>İşlem</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr th:each="gorev : ${aktifGorevler}">
+                                    <td th:text="${gorev.id}">1</td>
+                                    <td>
+                                        <small th:text="${gorev.baslangicNoktasi} + ' → ' + ${gorev.varisNoktasi}">İnönü Üniversitesi → Malatya Cezaevi</small>
+                                    </td>
+                                    <td th:text="${gorev.arac.plaka}">34ABC123</td>
+                                    <td>
+                                        <a th:href="@{/gps/canli/} + ${gorev.id}"
+                                           class="btn btn-sm btn-info">
+                                            <i class="bi bi-geo-alt"></i> Takip
+                                        </a>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div th:if="${aktifGorevler == null or aktifGorevler.isEmpty()}">
+                        <p class="text-center text-muted my-4">
+                            <i class="bi bi-info-circle"></i> Aktif görev bulunmuyor.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tamamlanan Görevler -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-check-circle"></i> Tamamlanan Görevler</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${tamamlananGorevler != null and !tamamlananGorevler.isEmpty()}">
+                        <div id="completedTasksContainer">
+                            <div th:each="gorev : ${tamamlananGorevler}"
+                                 class="completed-gorev-card p-3 bg-light rounded">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">Görev #<span th:text="${gorev.id}">1</span></h6>
+                                        <p class="mb-1 small">
+                                            <i class="bi bi-geo-alt text-success"></i>
+                                            <span th:text="${gorev.baslangicNoktasi}">İnönü Üniversitesi</span> →
+                                            <span th:text="${gorev.varisNoktasi}">Malatya Cezaevi</span>
+                                        </p>
+                                        <p class="mb-1 small">
+                                            <i class="bi bi-truck text-info"></i>
+                                            Plaka: <span th:text="${gorev.arac.plaka}">34ABC123</span>
+                                        </p>
+                                        <p class="mb-0 small">
+                                            <i class="bi bi-people text-primary"></i>
+                                            Mahkum: <span th:text="${gorev.mahkumlar.size()}">5</span> kişi
+                                        </p>
+                                    </div>
+                                    <span class="badge bg-success">Tamamlandı</span>
+                                </div>
+                                <div class="mt-2 text-end">
+                                    <small class="text-muted">
+                                        <i class="bi bi-clock"></i>
+                                        <span th:if="${gorev.tamamlanmaTarihi != null}"
+                                              th:text="${#temporals.format(gorev.tamamlanmaTarihi, 'dd.MM.yyyy HH:mm')}">
+                                            01.01.2024 15:00
+                                        </span>
+                                        <span th:if="${gorev.tamamlanmaTarihi == null}">
+                                            Tarih belirtilmemiş
+                                        </span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div th:if="${tamamlananGorevler == null or tamamlananGorevler.isEmpty()}">
+                        <p class="text-center text-muted my-4">
+                            <i class="bi bi-info-circle"></i> Tamamlanan görev bulunmuyor.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Son İhlaller -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Son İhlaller</h5>
+                </div>
+                <div class="card-body">
+                    <div th:if="${sonIhlaller != null and !sonIhlaller.isEmpty()}">
+                        <div class="list-group">
+                            <div th:each="ihlal : ${sonIhlaller}"
+                                 class="list-group-item list-group-item-action">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">
+                                            <span th:switch="${ihlal.tip}">
+                                                <span th:case="HIZ_ASIMI" class="badge bg-danger">HIZ İHLALİ</span>
+                                                <span th:case="ROTA_DISINA_CIKMA" class="badge bg-warning">ROTA İHLALİ</span>
+                                                <span th:case="ACIL_DURUM_BUTONU" class="badge bg-danger">ACİL DURUM</span>
+                                                <span th:case="*" class="badge bg-secondary" th:text="${ihlal.tip}"></span>
+                                            </span>
+                                    </h6>
+                                    <small th:text="${#temporals.format(ihlal.olusturulmaTarihi, 'HH:mm')}">14:30</small>
+                                </div>
+                                <p class="mb-1" th:text="${ihlal.aciklama}">Hız sınırı aşıldı: 120 km/s</p>
+                                <small>Görev #<span th:text="${ihlal.nakilGorevi.id}">1</span></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div th:if="${sonIhlaller == null or sonIhlaller.isEmpty()}">
+                        <p class="text-center text-muted my-4">
+                            <i class="bi bi-check-circle"></i> Açık ihlal bulunmuyor.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hızlı Erişim Butonları -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Hızlı Erişim</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a th:href="@{/mahkum/add}" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> Yeni Mahkum
+                        </a>
+                        <a th:href="@{/arac/add}" class="btn btn-success">
+                            <i class="bi bi-truck"></i> Yeni Araç
+                        </a>
+                        <a th:href="@{/nakil-gorevi/add}" class="btn btn-warning">
+                            <i class="bi bi-clipboard-plus"></i> Yeni Görev
+                        </a>
+                        <a th:href="@{/ihlal/list}" class="btn btn-danger">
+                            <i class="bi bi-exclamation-triangle"></i> İhlalleri Gör
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Dashboard yüklendi.');
+
+        // Tamamlanan görevleri localStorage'dan yükle
+        loadCompletedTasks();
+
+        // Aktif görevler için tooltip
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+
+    // LocalStorage'dan tamamlanan görevleri yükle
+    function loadCompletedTasks() {
+        const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+        const container = document.getElementById('completedTasksContainer');
+
+        if (completedTasks.length > 0 && container) {
+            let html = '';
+            completedTasks.forEach(task => {
+                html += `
+                    <div class="completed-gorev-card p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">Görev #${task.id}</h6>
+                                <p class="mb-1 small">
+                                    <i class="bi bi-geo-alt text-success"></i>
+                                    ${task.baslangic} → ${task.varis}
+                                </p>
+                                <p class="mb-1 small">
+                                    <i class="bi bi-truck text-info"></i>
+                                    Plaka: ${task.plaka}
+                                </p>
+                                <p class="mb-0 small">
+                                    <i class="bi bi-people text-primary"></i>
+                                    Mahkum: ${task.mahkumSayisi} kişi
+                                </p>
+                            </div>
+                            <span class="badge bg-success">Tamamlandı</span>
+                        </div>
+                        <div class="mt-2 text-end">
+                            <small class="text-muted">
+                                <i class="bi bi-clock"></i>
+                                ${new Date(task.tamamlanmaTarihi).toLocaleDateString('tr-TR')} ${new Date(task.tamamlanmaTarihi).toLocaleTimeString('tr-TR')}
+                            </small>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+    }
+
+    // Görevi tamamlandı olarak işaretle ve localStorage'a kaydet
+    function completeTask(gorevId, baslangic, varis, plaka, mahkumSayisi) {
+        const completedTasks = JSON.parse(localStorage.getItem('completedTasks') || '[]');
+
+        const newTask = {
+            id: gorevId,
+            baslangic: baslangic,
+            varis: varis,
+            plaka: plaka,
+            mahkumSayisi: mahkumSayisi,
+            tamamlanmaTarihi: new Date().toISOString()
+        };
+
+        completedTasks.unshift(newTask); // En başa ekle
+        if (completedTasks.length > 10) {
+            completedTasks.pop(); // Son 10 görevi tut
+        }
+
+        localStorage.setItem('completedTasks', JSON.stringify(completedTasks));
+
+        // Dashboard'ı yenile
+        setTimeout(() => {
+            window.location.href = '/dashboard';
+        }, 1000);
+    }
+</script>
+</body>
+</html>

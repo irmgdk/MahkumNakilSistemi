@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akıllı Mahkum Nakil Sistemi</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+
+    <style>
+        body {
+            padding-top: 56px;
+            background-color: #f8f9fa;
+        }
+        .jumbotron {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .card {
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" th:href="@{/}">
+            <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/dashboard}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/mahkum/list}">
+                        <i class="bi bi-people"></i> Mahkumlar
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+                        <i class="bi bi-truck"></i> Görevler
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" th:href="@{/ihlal/list}">
+                        <i class="bi bi-exclamation-triangle"></i> İhlaller
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+    <div th:if="${message}" class="alert alert-info alert-dismissible fade show mt-4" role="alert">
+        <span th:text="${message}">Hoş Geldiniz</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="jumbotron p-5 rounded mt-4">
+        <h1 class="display-4">Akıllı Mahkum Nakil Sistemi</h1>
+        <p class="lead">Gelişmiş GPS takibi ile mahkum nakil operasyonlarını güvenli ve verimli yönetin.</p>
+        <hr class="my-4" style="background-color: rgba(255,255,255,0.5);">
+        <p>Sistem özellikleri:</p>
+        <ul class="text-light">
+            <li><strong>Gerçek zamanlı GPS takibi</strong></li>
+            <li><strong>Otomatik ihlal tespiti</strong> (hız, rota, durma)</li>
+            <li><strong>Mahkum ve araç yönetimi</strong></li>
+            <li><strong>Görev planlama ve takip</strong></li>
+            <li><strong>Detaylı raporlama</strong></li>
+        </ul>
+        <a class="btn btn-light btn-lg mt-3" th:href="@{/dashboard}" role="button">
+            <i class="bi bi-speedometer2"></i> Dashboard'a Git
+        </a>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-people text-primary" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title text-center">Mahkum Yönetimi</h5>
+                    <p class="card-text">Mahkum bilgilerini kaydedin, düzenleyin ve risk seviyelerini yönetin.</p>
+                    <div class="text-center">
+                        <a th:href="@{/mahkum/list}" class="btn btn-outline-primary">Mahkum Listesi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-truck text-success" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title text-center">Nakil Görevleri</h5>
+                    <p class="card-text">Nakil görevlerini oluşturun, başlatın ve gerçek zamanlı takip edin.</p>
+                    <div class="text-center">
+                        <a th:href="@{/nakil-gorevi/list}" class="btn btn-outline-success">Görev Listesi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <i class="bi bi-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                    </div>
+                    <h5 class="card-title text-center">İhlal Takibi</h5>
+                    <p class="card-text">Tespit edilen ihlalleri görüntüleyin ve yönetin.</p>
+                    <div class="text-center">
+                        <a th:href="@{/ihlal/list}" class="btn btn-outline-danger">İhlal Listesi</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Footer -->
+<footer class="bg-dark text-white mt-5 py-4">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-6">
+                <h5><i class="bi bi-shield-lock"></i> Akıllı Mahkum Nakil Sistemi</h5>
+                <p class="mb-0">Güvenli ve verimli mahkum nakil operasyonları için geliştirilmiş sistem.</p>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <p class="mb-0">&copy; 2024 Akıllı Mahkum Nakil Sistemi. Tüm hakları saklıdır.</p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    // Sayfa yüklendiğinde çalışacak kodlar
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Akıllı Mahkum Nakil Sistemi ana sayfası yüklendi.');
+    });
+</script>
+</body>
+</html>

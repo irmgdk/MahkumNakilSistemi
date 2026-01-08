@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Araçlar - Akıllı Mahkum Nakil Sistemi</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+
+  <style>
+    body {
+        padding-top: 56px;
+        background-color: #f8f9fa;
+    }
+    .navbar {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .card {
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        border-radius: 10px;
+    }
+    .table th {
+        border-top: none;
+        background-color: #343a40;
+        color: white;
+    }
+    .action-buttons {
+        white-space: nowrap;
+    }
+    .search-box {
+        max-width: 300px;
+    }
+    .badge {
+        font-size: 0.85em;
+        padding: 0.4em 0.8em;
+    }
+  </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" th:href="@{/}">
+      <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/dashboard}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/mahkum/list}">
+            <i class="bi bi-people"></i> Mahkumlar
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" th:href="@{/arac/list}">
+            <i class="bi bi-truck"></i> Araçlar
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+            <i class="bi bi-truck"></i> Görevler
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+  <!-- Mesajlar -->
+  <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-2"></i>
+    <span th:text="${successMessage}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <span th:text="${errorMessage}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-truck"></i> Araçlar</h1>
+    <a th:href="@{/arac/add}" class="btn btn-success">
+      <i class="bi bi-plus-circle"></i> Yeni Araç
+    </a>
+  </div>
+
+  <!-- Arama ve Filtreleme -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <form th:action="@{/arac/search}" method="get" class="d-flex">
+            <input type="text" name="keyword" class="form-control me-2"
+                   placeholder="Plaka, model veya marka ara..."
+                   th:value="${keyword}">
+            <button type="submit" class="btn btn-outline-primary">
+              <i class="bi bi-search"></i> Ara
+            </button>
+          </form>
+        </div>
+        <div class="col-md-8">
+          <div class="btn-group" role="group">
+            <a th:href="@{/arac/müsait}" class="btn btn-outline-success">
+              <i class="bi bi-check-circle"></i> Müsait Araçlar
+            </a>
+            <a th:href="@{/arac/bakimdaki}" class="btn btn-outline-warning">
+              <i class="bi bi-tools"></i> Bakımdaki Araçlar
+            </a>
+            <a th:href="@{/arac/bakim-gereken}" class="btn btn-outline-danger">
+              <i class="bi bi-exclamation-triangle"></i> Bakım Gerekenler
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover" id="aracTable">
+          <thead class="table-dark">
+          <tr>
+            <th>ID</th>
+            <th>Plaka</th>
+            <th>Model</th>
+            <th>Kapasite</th>
+            <th>Tip</th>
+            <th>Durum</th>
+            <th>İşlemler</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr th:each="arac : ${araclar}">
+            <td th:text="${arac.id}">1</td>
+            <td th:text="${arac.plaka}">34ABC123</td>
+            <td th:text="${arac.model}">Mercedes Sprinter</td>
+            <td th:text="${arac.kapasite}">10</td>
+            <td>
+              <span th:switch="${arac.tip}">
+                <span th:case="NAKİL" class="badge bg-primary">NAKİL</span>
+                <span th:case="ACİL" class="badge bg-danger">ACİL</span>
+                <span th:case="YÖNETİCİ" class="badge bg-info">YÖNETİCİ</span>
+                <span th:case="DESTEK" class="badge bg-warning text-dark">DESTEK</span>
+                <span th:case="DİĞER" class="badge bg-secondary">DİĞER</span>
+              </span>
+            </td>
+            <td>
+              <span th:if="${arac.aktif}" class="badge bg-success">AKTİF</span>
+              <span th:unless="${arac.aktif}" class="badge bg-secondary">PASİF</span>
+              <span th:if="${arac.bakimda}" class="badge bg-warning text-dark">BAKIMDA</span>
+            </td>
+            <td class="action-buttons">
+              <div class="btn-group btn-group-sm" role="group">
+                <a th:href="@{/arac/edit/{id}(id=${arac.id})}" class="btn btn-warning">
+                  <i class="bi bi-pencil"></i> Düzenle
+                </a>
+                <form th:action="@{/arac/delete/{id}(id=${arac.id})}" method="post" class="d-inline">
+                  <button type="submit" class="btn btn-danger"
+                          onclick="return confirmDelete('${arac.plaka} plakalı araç')">
+                    <i class="bi bi-trash"></i> Sil
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          <tr th:if="${#lists.isEmpty(araclar)}">
+            <td colspan="7" class="text-center text-muted py-4">
+              <i class="bi bi-truck display-4 text-muted d-block mb-3"></i>
+              Henüz araç kaydı bulunmuyor.
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- İstatistikler -->
+      <div class="d-flex justify-content-between align-items-center mt-3">
+        <div class="text-muted">
+          Toplam <span th:text="${toplamArac}">0</span> araç |
+          Aktif: <span th:text="${aktifArac}">0</span> |
+          Müsait: <span th:text="${musaitArac}">0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<footer class="bg-dark text-white mt-5 py-4">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-6">
+        <h5><i class="bi bi-shield-lock"></i> Akıllı Mahkum Nakil Sistemi</h5>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <p class="mb-0">&copy; 2024 Akıllı Mahkum Nakil Sistemi</p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('Araç listesi yüklendi.');
+
+    // Oto kapanan alert'leri yönet
+    setTimeout(function() {
+      const alerts = document.querySelectorAll('.alert');
+      alerts.forEach(alert => {
+        const bsAlert = new bootstrap.Alert(alert);
+        setTimeout(() => bsAlert.close(), 5000);
+      });
+    }, 3000);
+  });
+
+  function confirmDelete(aracBilgisi) {
+    return confirm(aracBilgisi + ' silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz!');
+  }
+
+  // İsteğe bağlı: JavaScript arama fonksiyonu
+  function searchArac() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#aracTable tbody tr');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      if (text.includes(searchTerm)) {
+        row.style.display = '';
+        visibleCount++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Takip - Akıllı Mahkum Nakil Sistemi</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+  <!-- Leaflet CSS (Harita) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    body {
+        padding-top: 56px;
+        background-color: #f8f9fa;
+    }
+    .navbar {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .card {
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        border-radius: 10px;
+    }
+    #map {
+        height: 500px;
+        border-radius: 8px;
+        z-index: 1;
+    }
+    .violation-alert {
+        animation: blink 1s infinite;
+        font-weight: bold;
+    }
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    .progress-bar-animated {
+        animation: progress-bar-stripes 1s linear infinite;
+    }
+    .gps-marker {
+        filter: hue-rotate(120deg);
+    }
+    .violation-marker {
+        filter: hue-rotate(0deg);
+        animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+    }
+    .simulasyon-badge {
+        animation: pulse 2s infinite;
+    }
+  </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" th:href="@{/}">
+      <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/dashboard}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+            <i class="bi bi-truck"></i> Görevler
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" th:href="@{/gps/track/} + ${gorev.id}">
+            <i class="bi bi-geo-alt"></i> GPS Takip
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+  <!-- Hız İhlali Uyarısı -->
+  <div th:if="${ihlalMessage}" class="alert alert-danger violation-alert" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <strong th:text="${ihlalMessage}">DİKKAT: HIZ İHLALİ!</strong>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <!-- Mesajlar -->
+  <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle"></i>
+    <span th:text="${message}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle"></i>
+    <span th:text="${error}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+      <i class="bi bi-geo-alt"></i> GPS Takip - Görev #<span id="gorevIdSpan" th:text="${gorev.id}">1</span>
+      <span th:if="${otomatikSimulasyon}" class="badge bg-primary simulasyon-badge ms-2">
+        <i class="bi bi-robot"></i> OTOMATİK SİMÜLASYON
+      </span>
+      <span th:if="${gorev.durum.toString() == 'TAMAMLANDI'}" class="badge bg-success ms-2">
+        <i class="bi bi-check-circle"></i> TAMAMLANDI
+      </span>
+    </h1>
+    <div>
+      <button id="otomatikBaslatBtn" class="btn btn-primary" th:if="${!otomatikSimulasyon and gorev.durum.toString() != 'TAMAMLANDI'}">
+        <i class="bi bi-play-circle"></i> Otomatik Simülasyon Başlat
+      </button>
+      <button id="otomatikDurdurBtn" class="btn btn-warning" th:if="${otomatikSimulasyon}">
+        <i class="bi bi-stop-circle"></i> Simülasyonu Durdur
+      </button>
+      <a th:href="@{/gps/canli/} + ${gorev.id}" class="btn btn-success ms-2">
+        <i class="bi bi-wifi"></i> Canlı Takip (Hoca)
+      </a>
+      <a th:href="@{/nakil-gorevi/list}" class="btn btn-outline-secondary ms-2">
+        <i class="bi bi-arrow-left"></i> Görevlere Dön
+      </a>
+    </div>
+  </div>
+
+  <!-- Görev Bilgileri ve İstatistikler -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-truck"></i> Araç Bilgileri
+          </h5>
+          <p class="mb-1"><strong>Plaka:</strong> <span th:text="${gorev.arac.plaka}">34ABC123</span></p>
+          <p class="mb-1"><strong>Model:</strong> <span th:text="${gorev.arac.model}">Mercedes Sprinter</span></p>
+          <p class="mb-1"><strong>Kapasite:</strong> <span th:text="${gorev.arac.kapasite}">10</span> mahkum</p>
+          <p class="mb-0" th:if="${gorev.gorevliler != null and !gorev.gorevliler.isEmpty()}">
+            <strong>Görevli:</strong>
+            <span th:text="${gorev.gorevliler[0].ad} + ' ' + ${gorev.gorevliler[0].soyad}">Ahmet Yılmaz</span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-signpost"></i> Güzergah
+          </h5>
+          <p class="mb-1"><strong>Başlangıç:</strong> <span th:text="${gorev.baslangicNoktasi}">Silivri</span></p>
+          <p class="mb-1"><strong>Varış:</strong> <span th:text="${gorev.varisNoktasi}">Kartal</span></p>
+          <p class="mb-0"><strong>Durum:</strong>
+            <span th:text="${gorev.durum}"
+                  th:class="${gorev.durum.toString() == 'TAMAMLANDI'} ? 'badge bg-success' :
+                            (${gorev.durum.toString() == 'DEVAM_EDIYOR'} ? 'badge bg-warning' : 'badge bg-secondary')">
+              PLANLANDI
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-speedometer2"></i> İlerleme
+          </h5>
+          <p class="mb-1"><strong>Tamamlanma:</strong></p>
+          <div class="progress mt-1" style="height: 15px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                 role="progressbar"
+                 th:style="'width: ' + ${tamamlanmaOrani} + '%'"
+                 th:attr="aria-valuenow=${tamamlanmaOrani}"
+                 aria-valuemin="0"
+                 aria-valuemax="100">
+              <span th:text="${tamamlanmaOrani} + '%'"></span>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between mt-1">
+            <small class="text-muted" th:text="${tamamlanmaOrani} + '%'"></small>
+            <small th:if="${gorev.durum.toString() == 'TAMAMLANDI'}" class="text-success">
+              <i class="bi bi-check-circle"></i> Tamamlandı
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="bi bi-clock"></i> Son Konum
+          </h5>
+          <div th:if="${sonKonum != null}">
+            <p class="mb-1"><strong>Enlem:</strong> <span id="sonEnlem" th:text="${sonKonum.enlem}">41.0730</span></p>
+            <p class="mb-1"><strong>Boylam:</strong> <span id="sonBoylam" th:text="${sonKonum.boylam}">28.2460</span></p>
+            <p class="mb-1"><strong>Hız:</strong>
+              <span id="sonHiz" th:text="${sonKonum.hiz} + ' km/s'">0 km/s</span>
+              <span th:if="${sonKonum.ihlalVar}" class="badge bg-danger ms-1">İHLAL</span>
+            </p>
+            <p class="mb-0"><strong>Zaman:</strong>
+              <span id="sonZaman" th:text="${#temporals.format(sonKonum.zamanDamgasi, 'HH:mm:ss')}">00:00:00</span>
+            </p>
+          </div>
+          <div th:unless="${sonKonum != null}" class="text-muted">
+            <i class="bi bi-info-circle"></i> Henüz konum bilgisi yok.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Harita -->
+  <div class="card mb-4">
+    <div class="card-header">
+      <h5 class="mb-0">
+        <i class="bi bi-map"></i> Canlı Harita Takibi
+        <small class="text-muted ms-2" id="haritaDurum">Yükleniyor...</small>
+      </h5>
+    </div>
+    <div class="card-body">
+      <div id="map"></div>
+      <div class="mt-3 text-center">
+        <button id="konumYenile" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-arrow-clockwise"></i> Konumları Yenile
+        </button>
+        <button id="haritaReset" class="btn btn-sm btn-outline-secondary ms-2">
+          <i class="bi bi-zoom-out"></i> Haritayı Sıfırla
+        </button>
+        <span class="ms-3 text-muted">
+          <i class="bi bi-info-circle"></i> Son güncelleme:
+          <span id="sonGuncelleme">Henüz yok</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Konum Geçmişi ve İhlaller -->
+  <div class="row">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="bi bi-clock-history"></i> Konum Geçmişi</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover">
+              <thead>
+              <tr>
+                <th>#</th>
+                <th>Enlem</th>
+                <th>Boylam</th>
+                <th>Hız</th>
+                <th>Zaman</th>
+                <th>Durum</th>
+              </tr>
+              </thead>
+              <tbody id="konumTablosu">
+              <tr th:each="konum, stat : ${konumlar}">
+                <td th:text="${stat.count}">1</td>
+                <td th:text="${#numbers.formatDecimal(konum.enlem, 1, 6)}">41.0730</td>
+                <td th:text="${#numbers.formatDecimal(konum.boylam, 1, 6)}">28.2460</td>
+                <td>
+                  <span th:text="${#numbers.formatDecimal(konum.hiz, 1, 1)} + ' km/s'">0 km/s</span>
+                  <span th:if="${konum.ihlalVar}" class="badge bg-danger ms-1">İHLAL</span>
+                </td>
+                <td th:text="${#temporals.format(konum.zamanDamgasi, 'HH:mm:ss')}">00:00:00</td>
+                <td>
+                  <span th:if="${konum.ihlalVar}" class="badge bg-danger">İHLAL</span>
+                  <span th:unless="${konum.ihlalVar}" class="badge bg-success">NORMAL</span>
+                </td>
+              </tr>
+              <tr th:if="${#lists.isEmpty(konumlar)}">
+                <td colspan="6" class="text-center text-muted">
+                  <i class="bi bi-info-circle"></i> Henüz konum kaydı bulunmuyor.
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header bg-warning">
+          <h5 class="mb-0 text-white">
+            <i class="bi bi-exclamation-triangle"></i> Tespit Edilen İhlaller
+            <span class="badge bg-danger float-end" th:text="${ihlaller != null ? ihlaller.size() : 0}">0</span>
+          </h5>
+        </div>
+        <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+          <div th:if="${ihlaller != null and not #lists.isEmpty(ihlaller)}">
+            <div th:each="ihlal : ${ihlaller}" class="mb-2 p-2 border border-danger rounded">
+              <strong th:text="'Hız: ' + ${#numbers.formatDecimal(ihlal.hiz, 1, 1)} + ' km/s'"></strong><br>
+              <small th:text="${#temporals.format(ihlal.zamanDamgasi, 'HH:mm:ss')}"></small><br>
+              <span class="badge bg-danger" th:text="${ihlal.ihlalAciklama}">Hız ihlali</span>
+            </div>
+          </div>
+          <div th:if="${ihlaller == null or #lists.isEmpty(ihlaller)}" class="text-center text-muted py-4">
+            <i class="bi bi-check-circle display-4 text-success"></i><br>
+            <strong>İhlal bulunmuyor</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Simülasyon Kontrolleri -->
+      <div class="card mt-3">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-gear"></i> Simülasyon Kontrolleri</h5>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <button id="gorevDurumGuncelle" class="btn btn-sm btn-outline-info">
+              <i class="bi bi-arrow-clockwise"></i> Görev Durumunu Güncelle
+            </button>
+            <div class="mt-2">
+              <small class="text-muted">
+                <i class="bi bi-info-circle"></i> Otomatik simülasyon çalışırken araç her 30 saniyede bir güncellenir.
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Leaflet JS (Harita) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // Değişkenler
+  let map;
+  let aracMarker;
+  let rotaCizgisi;
+  let konumMarkers = [];
+  let gorevId;
+  let otomatikSimulasyon = [[${otomatikSimulasyon}]];
+  let gorevDurumu = "[[${gorev.durum}]]";
+  let sonGuncellemeZamani = null;
+  let yenilemeInterval;
+  let durumKontrolInterval;
+
+  // Türkiye koordinatları
+  const baslangicNoktasi = [41.0730, 28.2460]; // Silivri
+  const varisNoktasi = [40.9100, 29.1800]; // Kartal
+  const turkiyeMerkez = [39.9334, 32.8597]; // Türkiye merkez
+
+  // Sayfa yüklendiğinde
+  document.addEventListener('DOMContentLoaded', function() {
+      // gorevId'yi HTML'den al
+      gorevId = document.getElementById('gorevIdSpan').textContent;
+      console.log('GPS takip sayfası yüklendi. Görev ID:', gorevId);
+
+      // Haritayı başlat
+      haritayiBaslat();
+
+      // Buton event listener'ları
+      document.getElementById('konumYenile')?.addEventListener('click', konumlariYenile);
+      document.getElementById('haritaReset')?.addEventListener('click', haritayiSifirla);
+      document.getElementById('gorevDurumGuncelle')?.addEventListener('click', gorevDurumunuGuncelle);
+
+      // Otomatik simülasyon butonları
+      document.getElementById('otomatikBaslatBtn')?.addEventListener('click', otomatikSimulasyonBaslat);
+      document.getElementById('otomatikDurdurBtn')?.addEventListener('click', otomatikSimulasyonDurdur);
+
+      // İlk konumları yükle
+      konumlariYenile();
+
+      // 10 saniyede bir otomatik yenile (simülasyon aktifse)
+      yenilemeInterval = setInterval(konumlariYenile, 10000);
+
+      // Görev durumunu kontrol et (30 saniyede bir)
+      durumKontrolInterval = setInterval(gorevDurumunuKontrolEt, 30000);
+
+      // Otomatik simülasyon aktifse bilgi göster
+      if (otomatikSimulasyon) {
+          showNotification('Otomatik simülasyon çalışıyor. Araç otomatik hareket ediyor.', 'info');
+      }
+
+      if (gorevDurumu === 'TAMAMLANDI') {
+          showNotification('Görev başarıyla tamamlandı!', 'success');
+      }
+  });
+
+  // Harita başlatma fonksiyonu
+  function haritayiBaslat() {
+      // Harita oluştur
+      map = L.map('map').setView(turkiyeMerkez, 9);
+
+      // OpenStreetMap katmanını ekle
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+
+      // Başlangıç noktası marker
+      L.marker(baslangicNoktasi, {
+          icon: L.icon({
+              iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684832.png',
+              iconSize: [40, 40],
+              iconAnchor: [20, 40]
+          })
+      }).addTo(map)
+      .bindPopup('<b>Başlangıç: Silivri Cezaevi</b><br>Mahkumların alındığı nokta')
+      .openPopup();
+
+      // Varış noktası marker
+      L.marker(varisNoktasi, {
+          icon: L.icon({
+              iconUrl: 'https://cdn-icons-png.flaticon.com/512/3176/3176295.png',
+              iconSize: [40, 40],
+              iconAnchor: [20, 40]
+          })
+      }).addTo(map)
+      .bindPopup('<b>Varış: Kartal Cezaevi</b><br>Mahkumların teslim edileceği nokta');
+
+      // Rota çizgisi
+      rotaCizgisi = L.polyline([baslangicNoktasi, varisNoktasi], {
+          color: 'blue',
+          weight: 3,
+          opacity: 0.5,
+          dashArray: '10, 10'
+      }).addTo(map);
+
+      // İlk araç konumu (Thymeleaf'tan al)
+      const ilkEnlem = document.getElementById('sonEnlem')?.textContent || baslangicNoktasi[0];
+      const ilkBoylam = document.getElementById('sonBoylam')?.textContent || baslangicNoktasi[1];
+
+      // Araç marker'ı
+      aracMarker = L.marker([parseFloat(ilkEnlem), parseFloat(ilkBoylam)], {
+          icon: L.icon({
+              iconUrl: 'https://cdn-icons-png.flaticon.com/512/2251/2251870.png',
+              iconSize: [50, 50],
+              iconAnchor: [25, 50],
+              className: 'gps-marker'
+          }),
+          zIndexOffset: 1000
+      }).addTo(map)
+      .bindPopup('Araç konumu');
+
+      document.getElementById('haritaDurum').textContent = 'Harita yüklendi';
+  }
+
+  // Konumları yenileme fonksiyonu - DÜZELTİLDİ
+  async function konumlariYenile() {
+      try {
+          console.log('Konumlar yenileniyor... Görev ID:', gorevId);
+          document.getElementById('haritaDurum').textContent = 'Konumlar güncelleniyor...';
+
+          // ENDPOINT DÜZELTİLDİ: Doğru endpoint kullanılıyor
+          const response = await fetch(`/gps/api/konumlar/${gorevId}`, {
+              headers: {
+                  'Accept': 'application/json'
+              }
+          });
+
+          console.log('Response status:', response.status, response.statusText);
+
+          if (!response.ok) {
+              if (response.status === 404) {
+                  throw new Error('API endpoint bulunamadı. Controller endpoint\'lerini kontrol edin.');
+              }
+              throw new Error(`HTTP hatası! durum: ${response.status}`);
+          }
+
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+              const text = await response.text();
+              console.error('Beklenen JSON yanıtı alınamadı, gelen:', text.substring(0, 100));
+              throw new Error('Beklenen JSON yanıtı alınamadı');
+          }
+
+          const data = await response.json();
+          console.log('API yanıtı alındı:', data);
+
+          // Eski marker'ları temizle
+          konumMarkers.forEach(marker => map.removeLayer(marker));
+          konumMarkers = [];
+
+          // Konumları haritaya ekle
+          if (data.konumlar && data.konumlar.length > 0) {
+              data.konumlar.forEach((konum, index) => {
+                  const marker = L.circleMarker([konum.enlem, konum.boylam], {
+                      radius: 5,
+                      color: konum.ihlalVar ? 'red' : 'green',
+                      fillColor: konum.ihlalVar ? '#ff0000' : '#00ff00',
+                      fillOpacity: 0.5
+                  }).addTo(map);
+
+                  konumMarkers.push(marker);
+              });
+
+              // Son konumu güncelle
+              if (data.sonKonum) {
+                  document.getElementById('sonEnlem').textContent = data.sonKonum.enlem.toFixed(6);
+                  document.getElementById('sonBoylam').textContent = data.sonKonum.boylam.toFixed(6);
+                  document.getElementById('sonHiz').textContent = data.sonKonum.hiz.toFixed(1) + ' km/s';
+                  document.getElementById('sonZaman').textContent =
+                      new Date(data.sonKonum.zamanDamgasi).toLocaleTimeString();
+
+                  // Araç marker'ını güncelle
+                  const yeniKonum = [data.sonKonum.enlem, data.sonKonum.boylam];
+                  aracMarker.setLatLng(yeniKonum);
+
+                  // İhlal varsa marker'ı değiştir
+                  if (data.sonKonum.ihlalVar) {
+                      aracMarker.setIcon(L.icon({
+                          iconUrl: 'https://cdn-icons-png.flaticon.com/512/3522/3522655.png',
+                          iconSize: [60, 60],
+                          iconAnchor: [30, 60],
+                          className: 'violation-marker'
+                      }));
+
+                      // İhlal uyarısı göster
+                      if (!document.querySelector('.violation-alert')) {
+                          showNotification('DİKKAT: HIZ İHLALİ TESPİT EDİLDİ! Hız: ' + data.sonKonum.hiz + ' km/s', 'danger');
+                      }
+                  } else {
+                      aracMarker.setIcon(L.icon({
+                          iconUrl: 'https://cdn-icons-png.flaticon.com/512/2251/2251870.png',
+                          iconSize: [50, 50],
+                          iconAnchor: [25, 50],
+                          className: 'gps-marker'
+                      }));
+                  }
+
+                  // Haritayı aracın konumuna kaydır
+                  map.panTo(yeniKonum, {animate: true});
+              }
+
+              // Tabloyu güncelle
+              const tbody = document.getElementById('konumTablosu');
+              tbody.innerHTML = '';
+
+              data.konumlar.slice().reverse().forEach((konum, index) => {
+                  const row = tbody.insertRow();
+                  row.insertCell(0).textContent = data.konumlar.length - index;
+                  row.insertCell(1).textContent = konum.enlem.toFixed(6);
+                  row.insertCell(2).textContent = konum.boylam.toFixed(6);
+
+                  const hizCell = row.insertCell(3);
+                  hizCell.textContent = konum.hiz.toFixed(1) + ' km/s';
+                  if (konum.ihlalVar) {
+                      const badge = document.createElement('span');
+                      badge.className = 'badge bg-danger ms-1';
+                      badge.textContent = 'İHLAL';
+                      hizCell.appendChild(badge);
+                  }
+
+                  row.insertCell(4).textContent =
+                      new Date(konum.zamanDamgasi).toLocaleTimeString();
+
+                  const durumCell = row.insertCell(5);
+                  if (konum.ihlalVar) {
+                      durumCell.innerHTML = '<span class="badge bg-danger">İHLAL</span>';
+                  } else {
+                      durumCell.innerHTML = '<span class="badge bg-success">NORMAL</span>';
+                  }
+              });
+          }
+
+          // Tamamlanma oranını güncelle
+          const tamamlanmaOrani = data.tamamlanmaOrani || 0;
+          const progressBar = document.querySelector('.progress-bar');
+          if (progressBar) {
+              progressBar.style.width = tamamlanmaOrani + '%';
+              progressBar.setAttribute('aria-valuenow', tamamlanmaOrani);
+              progressBar.textContent = tamamlanmaOrani.toFixed(1) + '%';
+          }
+
+          // Güncelleme zamanını kaydet
+          sonGuncellemeZamani = new Date();
+          document.getElementById('sonGuncelleme').textContent =
+              sonGuncellemeZamani.toLocaleTimeString();
+          document.getElementById('haritaDurum').textContent = 'Güncel - ' + sonGuncellemeZamani.toLocaleTimeString();
+
+      } catch (error) {
+          console.error('Konumlar yüklenirken hata:', error);
+          document.getElementById('haritaDurum').textContent = 'Hata: ' + error.message;
+          showNotification('Konumlar yüklenemedi: ' + error.message, 'danger');
+      }
+  }
+
+  // Görev durumunu güncelle - DÜZELTİLDİ
+  async function gorevDurumunuGuncelle() {
+      try {
+          // ENDPOINT DÜZELTİLDİ
+          const response = await fetch(`/api/gorev-durum/${gorevId}`, {
+              headers: { 'Accept': 'application/json' }
+          });
+
+          if (!response.ok) {
+              throw new Error(`HTTP hatası! durum: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.success) {
+              if (data.durum === 'TAMAMLANDI') {
+                  showNotification('Görev başarıyla tamamlandı!', 'success');
+                  // Sayfayı yenile
+                  setTimeout(() => location.reload(), 2000);
+              } else {
+                  showNotification('Görev durumu güncellendi: ' + data.durum, 'info');
+              }
+          }
+      } catch (error) {
+          console.error('Görev durumu güncellenirken hata:', error);
+          showNotification('Görev durumu güncellenemedi: ' + error.message, 'danger');
+      }
+  }
+
+  // Görev durumunu kontrol et - DÜZELTİLDİ
+  async function gorevDurumunuKontrolEt() {
+      try {
+          // ENDPOINT DÜZELTİLDİ
+          const response = await fetch(`/api/gorev-durum/${gorevId}`, {
+              headers: { 'Accept': 'application/json' }
+          });
+
+          if (!response.ok) {
+              throw new Error(`HTTP hatası! durum: ${response.status}`);
+          }
+
+          const data = await response.json();
+
+          if (data.success && data.durum === 'TAMAMLANDI') {
+              showNotification('Görev tamamlandı! Araç varış noktasına ulaştı.', 'success');
+              clearInterval(durumKontrolInterval);
+              clearInterval(yenilemeInterval);
+              setTimeout(() => location.reload(), 3000);
+          }
+      } catch (error) {
+          console.error('Görev durumu kontrol edilirken hata:', error);
+      }
+  }
+
+  // Otomatik simülasyon başlat
+  async function otomatikSimulasyonBaslat() {
+      try {
+          const response = await fetch(`/gps/otomatik/baslat/${gorevId}`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              }
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+              showNotification(data.message, 'success');
+              setTimeout(() => location.reload(), 2000);
+          } else {
+              throw new Error(data.error);
+          }
+      } catch (error) {
+          console.error('Simülasyon başlatılırken hata:', error);
+          showNotification('Simülasyon başlatılamadı: ' + error.message, 'danger');
+      }
+  }
+
+  // Otomatik simülasyon durdur
+  async function otomatikSimulasyonDurdur() {
+      if (!confirm('Simülasyonu durdurmak istediğinize emin misiniz?')) return;
+
+      try {
+          const response = await fetch(`/gps/otomatik/durdur/${gorevId}`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              }
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+              showNotification(data.message, 'info');
+              setTimeout(() => location.reload(), 2000);
+          } else {
+              throw new Error(data.error);
+          }
+      } catch (error) {
+          console.error('Simülasyon durdurulurken hata:', error);
+          showNotification('Simülasyon durdurulamadı: ' + error.message, 'danger');
+      }
+  }
+
+  // Haritayı sıfırlama
+  function haritayiSifirla() {
+      map.setView(turkiyeMerkez, 9);
+  }
+
+  // Bildirim gösterme
+  function showNotification(message, type) {
+      // Mevcut bildirimleri temizle
+      const existingAlerts = document.querySelectorAll('.auto-alert');
+      existingAlerts.forEach(alert => alert.remove());
+
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} auto-alert alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3 z-3`;
+      alertDiv.style.minWidth = '300px';
+      alertDiv.innerHTML = `
+          <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-triangle' : 'info-circle'}"></i>
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+
+      document.body.appendChild(alertDiv);
+
+      // 5 saniye sonra otomatik kaldır
+      setTimeout(() => {
+          if (alertDiv.parentNode) {
+              alertDiv.remove();
+          }
+      }, 5000);
+  }
+
+  // Sayfa kapatılırken temizlik
+  window.addEventListener('beforeunload', () => {
+      if (yenilemeInterval) {
+          clearInterval(yenilemeInterval);
+      }
+      if (durumKontrolInterval) {
+          clearInterval(durumKontrolInterval);
+      }
+  });
+</script>
+</body>
+</html>

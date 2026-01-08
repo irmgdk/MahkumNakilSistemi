@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canlı Takip - Akıllı Mahkum Nakil Sistemi</title>
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        body {
+            padding-top: 56px;
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: linear-gradient(90deg, #198754, #20c997);
+        }
+        .card {
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            border: 3px solid #28a745;
+        }
+        .live-badge {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .completion-animation {
+            animation: progress 2s ease-in-out infinite alternate;
+        }
+        @keyframes progress {
+            from { background-position: 0 0; }
+            to { background-position: 40px 0; }
+        }
+        .varis-mesaji {
+            animation: bounce 1s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .real-location-active {
+            background: linear-gradient(90deg, #0d6efd, #0dcaf0) !important;
+            color: white !important;
+            border-color: #0d6efd !important;
+        }
+    </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">
+            <i class="bi bi-shield-lock fs-3"></i>
+            <span class="ms-2">AKILLI MAHKUM NAKİL SİSTEMİ - CANLI TAKİP</span>
+        </a>
+        <div class="navbar-text text-white fw-semibold">
+            <i class="bi bi-person-badge fs-5"></i>
+            <span class="ms-2" id="modGosterge">DEMO GÖSTERİM MODU</span>
+        </div>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+    <!-- Başlık ve Kontroller -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="text-success">
+                <i class="bi bi-geo-alt-fill"></i>
+                Canlı GPS Takip Gösterimi
+            </h1>
+            <p class="text-muted">
+                Görev #<span id="gorevIdSpan" th:text="${gorev.id}">1</span> |
+                <span th:text="${gorev.baslangicNoktasi}">Silivri</span> →
+                <span th:text="${gorev.varisNoktasi}">Kartal</span>
+            </p>
+        </div>
+        <div>
+            <button id="demoBaslat" class="btn btn-warning btn-lg">
+                <i class="bi bi-play-fill"></i> DEMO BAŞLAT
+            </button>
+            <button id="gercekKonum" class="btn btn-primary btn-lg ms-2">
+                <i class="bi bi-geo-alt"></i> GERÇEK KONUM
+            </button>
+            <button id="demoSifirla" class="btn btn-outline-secondary btn-lg ms-2">
+                <i class="bi bi-arrow-clockwise"></i> SIFIRLA
+            </button>
+        </div>
+    </div>
+
+    <!-- Demo Durum Bilgisi -->
+    <div id="demoDurum" class="card border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="bi bi-info-circle"></i> KONUM TAKİP DURUMU
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <div id="demoDurumGosterge" class="rounded-circle bg-secondary me-3"
+                             style="width: 20px; height: 20px;"></div>
+                        <div>
+                            <h6 class="mb-0">Takip Durumu</h6>
+                            <p id="demoDurumText" class="mb-0 text-muted">Başlatılmadı</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-geo-alt text-success fs-4 me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Mevcut Konum</h6>
+                            <p id="mevcutKonumText" class="mb-0 text-muted">Başlangıç Noktası</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-speedometer2 text-primary fs-4 me-3"></i>
+                        <div>
+                            <h6 class="mb-0">Hız</h6>
+                            <p id="mevcutHizText" class="mb-0 text-muted">0 km/s</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- GPS Doğruluğu -->
+            <div id="gpsAccuracyContainer" class="mt-3 d-none">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-bullseye text-info fs-5 me-3"></i>
+                    <div>
+                        <h6 class="mb-0">GPS Doğruluğu</h6>
+                        <p id="gpsAccuracyText" class="mb-0 text-muted">Yüksek</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Varış Mesajı (Gizli) -->
+    <div id="varisMesaji" class="alert alert-success d-none varis-mesaji">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-check-circle-fill fs-1 me-3"></i>
+            <div>
+                <h4 class="alert-heading mb-1">VARIS NOKTASINA ULAŞILDI!</h4>
+                <p class="mb-0">Görev başarıyla tamamlandı. Araç varış noktasına ulaştı.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gerçek Konum Uyarısı -->
+    <div id="gercekKonumUyari" class="alert alert-info d-none">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-info-circle-fill fs-4 me-3"></i>
+            <div>
+                <h5 class="alert-heading mb-1">GERÇEK KONUM TAKİBİ AKTİF</h5>
+                <p class="mb-0">Gerçek konumunuz takip ediliyor. Konum bilgileriniz haritada gösterilecek ve hızınız ölçülecektir.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Harita -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-map"></i> Canlı Harita Takibi
+                        <span id="liveModeBadge" class="badge bg-warning live-badge ms-2">DEMO</span>
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="map"></div>
+                    <div class="p-3 bg-light border-top">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <small><i class="bi bi-geo-alt-fill text-success"></i>
+                                    <strong>Başlangıç:</strong> <span th:text="${gorev.baslangicNoktasi}">Silivri</span></small>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <small><i class="bi bi-arrow-right"></i>
+                                    <strong>Mesafe:</strong> <span id="mesafeText">~65 km</span></small>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <small><i class="bi bi-geo-alt-fill text-danger"></i>
+                                    <strong>Varış:</strong> <span th:text="${gorev.varisNoktasi}">Kartal</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canlı Veriler -->
+        <div class="col-md-4">
+            <!-- İlerleme -->
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> İlerleme Durumu</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <div class="display-4 text-primary fw-bold" id="tamamlanmaYuzde">0%</div>
+                        <p class="text-muted mb-0">Tamamlanma Oranı</p>
+                    </div>
+                    <div class="progress" style="height: 25px;">
+                        <div id="tamamlanmaProgress" class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-3">
+                        <p class="mb-2"><strong>Kalan Mesafe:</strong> <span id="kalanMesafe">65 km</span></p>
+                        <p class="mb-0"><strong>Tahmini Süre:</strong> <span id="tahminiSure">--:--</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Araç Bilgileri -->
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-truck"></i> Araç Bilgileri</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <strong>Plaka:</strong>
+                        <p class="mb-0" th:text="${gorev.arac.plaka}">34ABC123</p>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Model:</strong>
+                        <p class="mb-0" th:text="${gorev.arac.model}">Mercedes Sprinter</p>
+                    </div>
+                    <div class="mb-3">
+                        <strong>Mahkum Sayısı:</strong>
+                        <p class="mb-0" th:text="${gorev.mahkumlar.size()}">5</p>
+                    </div>
+                    <div class="mb-0">
+                        <strong>Görevli:</strong>
+                        <p class="mb-0" th:text="${gorev.gorevliler[0].ad + ' ' + gorev.gorevliler[0].soyad}">Ahmet Yılmaz</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hız Göstergesi -->
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-speedometer"></i> Hız Göstergesi</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <div class="display-2 fw-bold text-danger" id="hizDeger">0</div>
+                        <div class="text-muted">km/s</div>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div id="hizProgress" class="progress-bar bg-danger" style="width: 0%"></div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <span id="hizDurum">Durağan</span>
+                            <span id="hizIhlal" class="badge bg-warning float-end d-none">HIZ İHLALİ</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Son Konum -->
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Son Konum Bilgisi</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-2"><strong>Enlem:</strong> <span id="canliEnlem">41.0730</span></p>
+                    <p class="mb-2"><strong>Boylam:</strong> <span id="canliBoylam">28.2460</span></p>
+                    <p class="mb-2"><strong>Hız:</strong> <span id="canliHiz">0 km/s</span></p>
+                    <p class="mb-2"><strong>Doğruluk:</strong> <span id="canliAccuracy">--</span></p>
+                    <p class="mb-0"><strong>Son Güncelleme:</strong> <span id="canliZaman">--:--:--</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // Değişkenler
+    let map;
+    let aracMarker;
+    let rotaCizgisi;
+    let baslangicMarker;
+    let varisMarker;
+    let demoInterval;
+    let gercekKonumWatchId = null;
+    let simülasyonAktif = false;
+    let gercekKonumAktif = false;
+    let mevcutKonum;
+    let varisNoktasi;
+    let mesafeTamami;
+    let kalanMesafe;
+    let toplamAdim = 20; // Toplam simülasyon adımı
+    let mevcutAdim = 0;
+    let gorevId;
+    let sonHiz = 0;
+    let sonZaman = Date.now();
+
+    // Rota koordinatları
+    const BASLANGIC = [41.0730, 28.2460]; // Silivri
+    const VARIS = [40.9100, 29.1800]; // Kartal
+
+    // Sayfa yüklendiğinde
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Canlı takip demo sayfası yüklendi');
+
+        // Görev ID'sini al
+        gorevId = document.getElementById('gorevIdSpan').textContent;
+
+        // Haritayı başlat
+        haritayiBaslat();
+
+        // Buton event listener'ları
+        document.getElementById('demoBaslat').addEventListener('click', demoBaslat);
+        document.getElementById('gercekKonum').addEventListener('click', gercekKonumBaslat);
+        document.getElementById('demoSifirla').addEventListener('click', demoSifirla);
+
+        // İlk durumu ayarla
+        mevcutKonum = [...BASLANGIC];
+        varisNoktasi = [...VARIS];
+        mesafeHesaplaVeGuncelle();
+    });
+
+    // Harita başlatma
+    function haritayiBaslat() {
+        // Haritayı oluştur (İstanbul merkez)
+        map = L.map('map').setView([41.0082, 28.9784], 10);
+
+        // OpenStreetMap katmanı
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Başlangıç marker'ı
+        baslangicMarker = L.marker(BASLANGIC, {
+            icon: L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/684/684832.png',
+                iconSize: [50, 50],
+                iconAnchor: [25, 50],
+                popupAnchor: [0, -50]
+            })
+        }).addTo(map)
+        .bindPopup('<b>BAŞLANGIÇ: Silivri Cezaevi</b><br>Mahkumların alındığı nokta')
+        .openPopup();
+
+        // Varış marker'ı
+        varisMarker = L.marker(VARIS, {
+            icon: L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3176/3176295.png',
+                iconSize: [50, 50],
+                iconAnchor: [25, 50],
+                popupAnchor: [0, -50]
+            })
+        }).addTo(map)
+        .bindPopup('<b>VARIS: Kartal Cezaevi</b><br>Mahkumların teslim edileceği nokta');
+
+        // Rota çizgisi
+        rotaCizgisi = L.polyline([BASLANGIC, VARIS], {
+            color: '#28a745',
+            weight: 4,
+            opacity: 0.7,
+            dashArray: '10, 10'
+        }).addTo(map);
+
+        // Araç marker'ı (başlangıçta başlangıç noktasında)
+        aracMarker = L.marker(BASLANGIC, {
+            icon: L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2251/2251870.png',
+                iconSize: [60, 60],
+                iconAnchor: [30, 60],
+                className: 'arac-marker'
+            }),
+            zIndexOffset: 1000
+        }).addTo(map)
+        .bindPopup('Araç Konumu');
+    }
+
+    // Demo başlatma
+    function demoBaslat() {
+        // Gerçek konum takibi varsa durdur
+        if (gercekKonumAktif) {
+            gercekKonumDurdur();
+        }
+
+        const btn = document.getElementById('demoBaslat');
+
+        if (simülasyonAktif) {
+            // Demo durdur
+            clearInterval(demoInterval);
+            simülasyonAktif = false;
+            btn.innerHTML = '<i class="bi bi-play-fill"></i> DEMO BAŞLAT';
+            btn.className = 'btn btn-warning btn-lg';
+            document.getElementById('liveModeBadge').textContent = 'DEMO';
+            document.getElementById('modGosterge').textContent = 'DEMO GÖSTERİM MODU';
+
+            document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-warning me-3';
+            document.getElementById('demoDurumText').textContent = 'Durduruldu';
+
+            console.log('Demo durduruldu');
+        } else {
+            // Demo başlat
+            simülasyonAktif = true;
+            mevcutAdim = 0;
+
+            btn.innerHTML = '<i class="bi bi-stop-fill"></i> DEMO DURDUR';
+            btn.className = 'btn btn-danger btn-lg';
+            document.getElementById('liveModeBadge').textContent = 'DEMO';
+            document.getElementById('modGosterge').textContent = 'DEMO GÖSTERİM MODU';
+
+            document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-success me-3';
+            document.getElementById('demoDurumText').textContent = 'Çalışıyor';
+            document.getElementById('varisMesaji').classList.add('d-none');
+            document.getElementById('gercekKonumUyari').classList.add('d-none');
+            document.getElementById('gpsAccuracyContainer').classList.add('d-none');
+
+            // Demo interval'ini başlat
+            demoInterval = setInterval(simulasyonAdimi, 2000); // Her 2 saniyede bir
+
+            console.log('Demo başlatıldı');
+        }
+    }
+
+    // Gerçek konum başlatma
+    function gercekKonumBaslat() {
+        // Demo varsa durdur
+        if (simülasyonAktif) {
+            clearInterval(demoInterval);
+            simülasyonAktif = false;
+            const demoBtn = document.getElementById('demoBaslat');
+            demoBtn.innerHTML = '<i class="bi bi-play-fill"></i> DEMO BAŞLAT';
+            demoBtn.className = 'btn btn-warning btn-lg';
+        }
+
+        const btn = document.getElementById('gercekKonum');
+
+        if (gercekKonumAktif) {
+            // Gerçek konum durdur
+            gercekKonumDurdur();
+        } else {
+            // Gerçek konum başlat
+            if (!navigator.geolocation) {
+                alert('Tarayıcınız konum servisini desteklemiyor!');
+                return;
+            }
+
+            btn.innerHTML = '<i class="bi bi-stop-fill"></i> GERÇEK KONUM DURDUR';
+            btn.classList.add('real-location-active');
+            gercekKonumAktif = true;
+
+            document.getElementById('liveModeBadge').textContent = 'GERÇEK';
+            document.getElementById('modGosterge').textContent = 'GERÇEK KONUM MODU';
+            document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-info me-3';
+            document.getElementById('demoDurumText').textContent = 'Gerçek Konum Takibi';
+            document.getElementById('gercekKonumUyari').classList.remove('d-none');
+            document.getElementById('gpsAccuracyContainer').classList.remove('d-none');
+
+            // GPS izleme başlat
+            const options = {
+                enableHighAccuracy: true,
+                maximumAge: 30000,
+                timeout: 27000
+            };
+
+            gercekKonumWatchId = navigator.geolocation.watchPosition(
+                gercekKonumGuncelle,
+                gercekKonumHatasi,
+                options
+            );
+
+            console.log('Gerçek konum takibi başlatıldı');
+        }
+    }
+
+    // Gerçek konum güncelleme
+    function gercekKonumGuncelle(position) {
+        const enlem = position.coords.latitude;
+        const boylam = position.coords.longitude;
+        const accuracy = position.coords.accuracy; // metre cinsinden doğruluk
+        const speed = position.coords.speed; // m/s cinsinden hız
+        const timestamp = new Date(position.timestamp);
+
+        // Hızı km/s'ye çevir (m/s'den km/s'ye)
+        const hizKmh = speed ? (speed * 3.6) : 0;
+
+        // Konumu güncelle
+        mevcutKonum = [enlem, boylam];
+
+        // Marker'ı güncelle
+        aracMarker.setLatLng(mevcutKonum);
+        map.panTo(mevcutKonum, {animate: true, duration: 1});
+
+        // Doğruluk çemberi oluştur veya güncelle
+        if (window.accuracyCircle) {
+            map.removeLayer(window.accuracyCircle);
+        }
+
+        window.accuracyCircle = L.circle(mevcutKonum, {
+            radius: accuracy,
+            color: '#007bff',
+            fillColor: '#007bff',
+            fillOpacity: 0.2,
+            weight: 1
+        }).addTo(map);
+
+        // Arayüzü güncelle
+        document.getElementById('canliEnlem').textContent = enlem.toFixed(6);
+        document.getElementById('canliBoylam').textContent = boylam.toFixed(6);
+        document.getElementById('canliHiz').textContent = hizKmh.toFixed(1) + ' km/s';
+        document.getElementById('canliAccuracy').textContent = accuracy ? accuracy.toFixed(0) + ' m' : 'Bilinmiyor';
+        document.getElementById('canliZaman').textContent = timestamp.toLocaleTimeString('tr-TR');
+
+        document.getElementById('mevcutKonumText').textContent =
+            `Enlem: ${enlem.toFixed(4)}, Boylam: ${boylam.toFixed(4)}`;
+        document.getElementById('mevcutHizText').textContent = hizKmh.toFixed(1) + ' km/s';
+
+        // Hız göstergelerini güncelle
+        guncelleGostergeler(0, hizKmh); // İlerleme yüzdesi 0 (gerçek konum için)
+
+        // GPS doğruluk bilgisi
+        let accuracyText = 'Yüksek';
+        if (accuracy > 100) accuracyText = 'Orta';
+        if (accuracy > 500) accuracyText = 'Düşük';
+        document.getElementById('gpsAccuracyText').textContent = accuracyText + ` (${accuracy ? accuracy.toFixed(0) + ' m' : 'Bilinmiyor'})`;
+
+        // Mesafe bilgilerini güncelle
+        mesafeHesaplaVeGuncelle();
+
+        console.log(`Gerçek konum: ${enlem}, ${boylam}, Hız: ${hizKmh} km/s`);
+    }
+
+    // Gerçek konum hatası
+    function gercekKonumHatasi(error) {
+        let errorMessage;
+
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                errorMessage = "Konum erişimi reddedildi. Lütfen tarayıcı ayarlarınızdan konum iznini aktif edin.";
+                break;
+            case error.POSITION_UNAVAILABLE:
+                errorMessage = "Konum bilgisi alınamıyor. GPS'in açık olduğundan emin olun.";
+                break;
+            case error.TIMEOUT:
+                errorMessage = "Konum alınırken zaman aşımı oluştu.";
+                break;
+            default:
+                errorMessage = "Bilinmeyen bir hata oluştu.";
+                break;
+        }
+
+        alert('Konum Hatası: ' + errorMessage);
+        gercekKonumDurdur();
+    }
+
+    // Gerçek konum durdurma
+    function gercekKonumDurdur() {
+        if (gercekKonumWatchId !== null) {
+            navigator.geolocation.clearWatch(gercekKonumWatchId);
+            gercekKonumWatchId = null;
+        }
+
+        gercekKonumAktif = false;
+        const btn = document.getElementById('gercekKonum');
+        btn.innerHTML = '<i class="bi bi-geo-alt"></i> GERÇEK KONUM';
+        btn.classList.remove('real-location-active');
+
+        document.getElementById('liveModeBadge').textContent = 'DEMO';
+        document.getElementById('modGosterge').textContent = 'DEMO GÖSTERİM MODU';
+        document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-secondary me-3';
+        document.getElementById('demoDurumText').textContent = 'Başlatılmadı';
+        document.getElementById('gercekKonumUyari').classList.add('d-none');
+        document.getElementById('gpsAccuracyContainer').classList.add('d-none');
+
+        // Doğruluk çemberini temizle
+        if (window.accuracyCircle) {
+            map.removeLayer(window.accuracyCircle);
+            window.accuracyCircle = null;
+        }
+
+        console.log('Gerçek konum takibi durduruldu');
+    }
+
+    // Demo sıfırlama
+    function demoSifirla() {
+        // Demo durdur
+        if (simülasyonAktif) {
+            clearInterval(demoInterval);
+            simülasyonAktif = false;
+        }
+
+        // Gerçek konum durdur
+        if (gercekKonumAktif) {
+            gercekKonumDurdur();
+        }
+
+        // Değişkenleri sıfırla
+        mevcutKonum = [...BASLANGIC];
+        mevcutAdim = 0;
+
+        // Arayüzü sıfırla
+        document.getElementById('demoBaslat').innerHTML = '<i class="bi bi-play-fill"></i> DEMO BAŞLAT';
+        document.getElementById('demoBaslat').className = 'btn btn-warning btn-lg';
+        document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-secondary me-3';
+        document.getElementById('demoDurumText').textContent = 'Başlatılmadı';
+        document.getElementById('mevcutKonumText').textContent = 'Başlangıç Noktası';
+        document.getElementById('mevcutHizText').textContent = '0 km/s';
+        document.getElementById('varisMesaji').classList.add('d-none');
+        document.getElementById('gercekKonumUyari').classList.add('d-none');
+        document.getElementById('liveModeBadge').textContent = 'DEMO';
+        document.getElementById('modGosterge').textContent = 'DEMO GÖSTERİM MODU';
+
+        // Haritayı sıfırla
+        aracMarker.setLatLng(BASLANGIC);
+        map.setView([41.0082, 28.9784], 10);
+
+        // Göstergeleri sıfırla
+        guncelleGostergeler(0, 0);
+        mesafeHesaplaVeGuncelle();
+
+        console.log('Demo sıfırlandı');
+    }
+
+    // Simülasyon adımı
+    function simulasyonAdimi() {
+        if (mevcutAdim >= toplamAdim) {
+            // Varış noktasına ulaşıldı
+            clearInterval(demoInterval);
+            simülasyonAktif = false;
+
+            // Varış mesajını göster
+            document.getElementById('varisMesaji').classList.remove('d-none');
+
+            // Butonu güncelle
+            document.getElementById('demoBaslat').innerHTML = '<i class="bi bi-check-circle"></i> TAMAMLANDI';
+            document.getElementById('demoBaslat').className = 'btn btn-success btn-lg';
+            document.getElementById('demoDurumGosterge').className = 'rounded-circle bg-success me-3';
+            document.getElementById('demoDurumText').textContent = 'Tamamlandı';
+
+            // Son konumu varış noktasına tam olarak ayarla
+            mevcutKonum = [...VARIS];
+            aracMarker.setLatLng(VARIS);
+
+            // Göstergeleri güncelle
+            guncelleGostergeler(100, 0);
+            document.getElementById('mevcutKonumText').textContent = 'Varış Noktası';
+            document.getElementById('mevcutHizText').textContent = '0 km/s';
+
+            console.log('Varış noktasına ulaşıldı!');
+            return;
+        }
+
+        // Bir sonraki adımı hesapla
+        mevcutAdim++;
+
+        // İlerleme oranını hesapla
+        const ilerlemeOrani = mevcutAdim / toplamAdim;
+
+        // Yeni konumu hesapla (varış noktasına doğru ilerle)
+        const yeniEnlem = BASLANGIC[0] + (VARIS[0] - BASLANGIC[0]) * ilerlemeOrani;
+        const yeniBoylam = BASLANGIC[1] + (VARIS[1] - BASLANGIC[1]) * ilerlemeOrani;
+
+        // Rastgele sapma ekle (gerçekçilik için)
+        const rastgeleSapma = 0.01;
+        const sapmaEnlem = (Math.random() - 0.5) * rastgeleSapma * (1 - ilerlemeOrani);
+        const sapmaBoylam = (Math.random() - 0.5) * rastgeleSapma * (1 - ilerlemeOrani);
+
+        mevcutKonum = [yeniEnlem + sapmaEnlem, yeniBoylam + sapmaBoylam];
+
+        // Hızı hesapla (ilerledikçe hız artsın, sonlara doğru azalsın)
+        let hiz;
+        if (ilerlemeOrani < 0.2) {
+            // Başlangıç: hız yavaş artıyor
+            hiz = 40 + Math.random() * 20;
+        } else if (ilerlemeOrani < 0.8) {
+            // Orta bölüm: normal hız
+            hiz = 70 + Math.random() * 30;
+        } else {
+            // Son bölüm: yavaşlama
+            hiz = 30 + Math.random() * 20;
+        }
+
+        // %20 ihtimalle hız ihlali
+        const ihlalVar = Math.random() < 0.2;
+        if (ihlalVar) {
+            hiz = 95 + Math.random() * 20; // Hız ihlali: 95-115 km/s
+        }
+
+        // Haritayı güncelle
+        aracMarker.setLatLng(mevcutKonum);
+        map.panTo(mevcutKonum, {animate: true, duration: 1});
+
+        // İhlal durumunda marker'ı değiştir
+        if (ihlalVar) {
+            aracMarker.setIcon(L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/3522/3522655.png',
+                iconSize: [70, 70],
+                iconAnchor: [35, 70],
+                className: 'ihlal-marker'
+            }));
+        } else {
+            aracMarker.setIcon(L.icon({
+                iconUrl: 'https://cdn-icons-png.flaticon.com/512/2251/2251870.png',
+                iconSize: [60, 60],
+                iconAnchor: [30, 60],
+                className: 'arac-marker'
+            }));
+        }
+
+        // Arayüzü güncelle
+        const tamamlanmaYuzdesi = Math.min(100, (ilerlemeOrani * 100));
+        guncelleGostergeler(tamamlanmaYuzdesi, hiz);
+
+        // Konum bilgilerini güncelle
+        document.getElementById('canliEnlem').textContent = mevcutKonum[0].toFixed(6);
+        document.getElementById('canliBoylam').textContent = mevcutKonum[1].toFixed(6);
+        document.getElementById('canliHiz').textContent = hiz.toFixed(1) + ' km/s';
+        document.getElementById('canliAccuracy').textContent = 'Demo';
+        document.getElementById('canliZaman').textContent = new Date().toLocaleTimeString('tr-TR');
+
+        // Durum metinlerini güncelle
+        document.getElementById('mevcutKonumText').textContent =
+            `Adım ${mevcutAdim}/${toplamAdim} (${tamamlanmaYuzdesi.toFixed(1)}%)`;
+        document.getElementById('mevcutHizText').textContent = hiz.toFixed(1) + ' km/s';
+
+        // İhlal uyarısı
+        if (ihlalVar) {
+            document.getElementById('hizIhlal').classList.remove('d-none');
+        } else {
+            document.getElementById('hizIhlal').classList.add('d-none');
+        }
+
+        // Mesafe bilgilerini güncelle
+        mesafeHesaplaVeGuncelle();
+    }
+
+    // Mesafe hesapla ve güncelle
+    function mesafeHesaplaVeGuncelle() {
+        // Toplam mesafe
+        const toplamMesafe = hesaplaMesafe(BASLANGIC[0], BASLANGIC[1], VARIS[0], VARIS[1]);
+        document.getElementById('mesafeText').textContent = toplamMesafe.toFixed(1) + ' km';
+
+        // Kalan mesafe
+        const kalanMesafe = hesaplaMesafe(mevcutKonum[0], mevcutKonum[1], VARIS[0], VARIS[1]);
+        document.getElementById('kalanMesafe').textContent = kalanMesafe.toFixed(1) + ' km';
+
+        // Tahmini süre (ortalama 80 km/s hızla)
+        const tahminiSureDakika = (kalanMesafe / 80) * 60;
+        const saat = Math.floor(tahminiSureDakika / 60);
+        const dakika = Math.floor(tahminiSureDakika % 60);
+        document.getElementById('tahminiSure').textContent =
+            `${saat.toString().padStart(2, '0')}:${dakika.toString().padStart(2, '0')}`;
+    }
+
+    // İki nokta arası mesafe hesaplama (Haversine formülü)
+    function hesaplaMesafe(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Dünya yarıçapı (km)
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    // Göstergeleri güncelle
+    function guncelleGostergeler(tamamlanmaYuzdesi, hiz) {
+        // Tamamlanma yüzdesi
+        document.getElementById('tamamlanmaYuzde').textContent = tamamlanmaYuzdesi.toFixed(1) + '%';
+        document.getElementById('tamamlanmaProgress').style.width = tamamlanmaYuzdesi + '%';
+
+        // Hız göstergesi
+        document.getElementById('hizDeger').textContent = hiz.toFixed(1);
+        const hizYuzde = Math.min(100, (hiz / 120) * 100);
+        document.getElementById('hizProgress').style.width = hizYuzde + '%';
+
+        // Hız durumu
+        const hizDurum = document.getElementById('hizDurum');
+        if (hiz > 90) {
+            hizDurum.textContent = 'YÜKSEK HIZ';
+            document.getElementById('hizProgress').className = 'progress-bar bg-danger';
+        } else if (hiz > 70) {
+            hizDurum.textContent = 'NORMAL';
+            document.getElementById('hizProgress').className = 'progress-bar bg-warning';
+        } else if (hiz > 30) {
+            hizDurum.textContent = 'DÜŞÜK HIZ';
+            document.getElementById('hizProgress').className = 'progress-bar bg-info';
+        } else {
+            hizDurum.textContent = 'DURAĞAN';
+            document.getElementById('hizProgress').className = 'progress-bar bg-secondary';
+        }
+    }
+
+    // Sayfa kapatılırken temizlik
+    window.addEventListener('beforeunload', () => {
+        if (demoInterval) {
+            clearInterval(demoInterval);
+        }
+        if (gercekKonumWatchId !== null) {
+            navigator.geolocation.clearWatch(gercekKonumWatchId);
+        }
+    });
+</script>
+</body>
+</html>

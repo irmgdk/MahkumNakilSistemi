@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title th:if="${mahkum.id != null}">Mahkum Düzenle</title>
+  <title th:unless="${mahkum.id != null}">Yeni Mahkum Ekle</title>
+
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+
+  <style>
+    body {
+        padding-top: 56px;
+        background-color: #f8f9fa;
+    }
+    .navbar {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .card {
+        border: none;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        border-radius: 10px;
+    }
+    .error-message {
+        color: #dc3545;
+        font-size: 0.875em;
+        margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" th:href="@{/}">
+      <i class="bi bi-shield-lock"></i> Mahkum Nakil Sistemi
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/dashboard}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" th:href="@{/mahkum/list}">
+            <i class="bi bi-people"></i> Mahkumlar
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" th:href="@{/nakil-gorevi/list}">
+            <i class="bi bi-truck"></i> Görevler
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="container mt-5 pt-4">
+  <!-- Hata Mesajları -->
+  <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <span th:text="${errorMessage}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  <!-- Başarı Mesajları -->
+  <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="bi bi-check-circle me-2"></i>
+    <span th:text="${successMessage}"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>
+      <span th:if="${mahkum.id != null}">
+        <i class="bi bi-pencil"></i> Mahkum Düzenle
+      </span>
+      <span th:unless="${mahkum.id != null}">
+        <i class="bi bi-person-plus"></i> Yeni Mahkum Ekle
+      </span>
+    </h1>
+    <a th:href="@{/mahkum/list}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Geri Dön
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form th:action="@{/mahkum/save}" th:object="${mahkum}" method="post" novalidate>
+        <!-- ID alanı (gizli) -->
+        <input type="hidden" th:field="*{id}" />
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Ad *</label>
+            <input type="text" class="form-control" th:field="*{ad}" required maxlength="50">
+            <div class="invalid-feedback">Lütfen ad giriniz.</div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Soyad *</label>
+            <input type="text" class="form-control" th:field="*{soyad}" required maxlength="50">
+            <div class="invalid-feedback">Lütfen soyad giriniz.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">TC Kimlik No *</label>
+            <input type="text" class="form-control" th:field="*{tcKimlik}"
+                   pattern="[1-9]{1}[0-9]{10}"
+                   title="11 haneli TC Kimlik numarası giriniz"
+                   required maxlength="11">
+            <div class="invalid-feedback">Lütfen geçerli bir TC Kimlik numarası giriniz.</div>
+            <small class="text-muted">11 haneli TC Kimlik numarası giriniz (0 ile başlayamaz).</small>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Risk Seviyesi *</label>
+            <select class="form-select" th:field="*{riskSeviyesi}" required>
+              <option value="">Seçiniz</option>
+              <option th:each="risk : ${riskSeviyeleri}"
+                      th:value="${risk}"
+                      th:selected="${mahkum.riskSeviyesi == risk}"
+                      th:text="${risk}"></option>
+            </select>
+            <div class="invalid-feedback">Lütfen risk seviyesi seçiniz.</div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Suç Tipi *</label>
+          <input type="text" class="form-control" th:field="*{sucTipi}" required maxlength="100">
+          <div class="invalid-feedback">Lütfen suç tipi giriniz.</div>
+        </div>
+
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" th:field="*{aktif}" id="aktifCheck">
+          <label class="form-check-label" for="aktifCheck">Aktif</label>
+          <small class="text-muted d-block">Pasif yapılan mahkumlar nakil işlemlerinde gösterilmez.</small>
+        </div>
+
+        <div class="d-flex justify-content-between">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save"></i> Kaydet
+          </button>
+          <a th:href="@{/mahkum/list}" class="btn btn-secondary">İptal</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</main>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+      // Form validation
+      const forms = document.querySelectorAll('form');
+
+      Array.from(forms).forEach(form => {
+          form.addEventListener('submit', event => {
+              if (!form.checkValidity()) {
+                  event.preventDefault();
+                  event.stopPropagation();
+              }
+
+              form.classList.add('was-validated');
+          }, false);
+      });
+
+      // TC Kimlik input mask
+      const tcInput = document.querySelector('input[th\\:field="*{tcKimlik}"]');
+      if (tcInput) {
+          tcInput.addEventListener('input', function(e) {
+              let value = e.target.value.replace(/\D/g, '');
+              e.target.value = value;
+          });
+      }
+  });
+</script>
+</body>
+</html>
