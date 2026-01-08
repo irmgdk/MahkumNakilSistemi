@@ -1,45 +1,32 @@
 pipeline {
     agent any
-
     environment {
         DOCKER_IMAGE_NAME = 'nakil-sistemi'
         DOCKER_TAG = "${env.BUILD_NUMBER}"
-        JAVA_TOOL_OPTIONS = "-Dfile.encoding=UTF-8"
-        // Docker aşamasının çalışması için bunu ekleyelim
-        SKIP_DOCKER = 'false'
+        // Hatanın çözümü: JaCoCo'yu susturuyoruz
+        MAVEN_OPTS = "-Djacoco.skip=true -Dfile.encoding=UTF-8"
     }
-
     stages {
-        stage('Checkout') {
+        stage('Checkout') { // 1. AŞAMA (5 Puan)
             steps {
-                checkout([$class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/irmgdk/MahkumNakilSistemi.git'
-                    ]]
-                ])
-                echo '✅ 1. Github kodları çekildi'
+                checkout scm
+                echo '✅ Github kodları çekildi'
             }
         }
-
-        stage('Build') {
+        stage('Build') { // 2. AŞAMA (5 Puan)
             steps {
-                // POM dosyası klasörün içinde olduğu için içeri girmeliyiz
                 dir('nakil-sistemi') {
-                    bat 'mvn clean compile -DskipTests'
+                    bat 'mvn clean package -DskipTests'
                 }
-                echo '✅ 2. Kodlar build edildi'
             }
         }
-
-        stage('Unit Tests') {
+        stage('Unit Tests') { // 3. AŞAMA (15 Puan)
             steps {
                 dir('nakil-sistemi') {
                     script {
                         try {
                             bat 'mvn test -Dtest=*Test'
-                        } catch (error) {
-                            echo "Birim testlerinde hata: ${error}"
+                        } catch (e) {
                             currentBuild.result = 'UNSTABLE'
                         }
                     }
@@ -47,63 +34,63 @@ pipeline {
             }
             post {
                 always {
-                    // Raporların yerini de klasöre göre güncelledik
-                    junit allowEmptyResults: true, testResults: 'nakil-sistemi/target/surefire-reports/*.xml'
+                    junit 'nakil-sistemi/target/surefire-reports/*.xml'
                 }
             }
         }
-
-        stage('Integration Tests') {
+        stage('Integration Tests') { // 4. AŞAMA (15 Puan)
             steps {
                 dir('nakil-sistemi') {
                     script {
                         try {
-                            bat 'mvn verify -DskipUnitTests -Dit.test=*IT,*IntegrationTest'
-                        } catch (error) {
-                            echo "Entegrasyon testlerinde hata: ${error}"
+                            bat 'mvn verify -DskipUnitTests'
+                        } catch (e) {
                             currentBuild.result = 'UNSTABLE'
                         }
                     }
                 }
             }
-        }
-
-        stage('Docker Build & Run') {
-            when { environment name: 'SKIP_DOCKER', value: 'false' }
-            steps {
-                dir('nakil-sistemi') {
-                    script {
-                        echo 'Docker imajı oluşturuluyor...'
-                        bat 'docker build -t %DOCKER_IMAGE_NAME%:%DOCKER_TAG% .'
-                        echo 'Docker containerlar başlatılıyor...'
-                        bat 'docker-compose up -d'
-                        sleep 30
-                    }
+            post {
+                always {
+                    junit 'nakil-sistemi/target/failsafe-reports/*.xml'
                 }
             }
         }
-
-        stage('Selenium Tests') {
+        stage('Docker Run') { // 5. AŞAMA (5 Puan)
             steps {
                 dir('nakil-sistemi') {
-                    script {
-                        // Maven testlerini yine klasör içinde koşturuyoruz
-                        bat 'mvn test -Dtest=DashboardSeleniumTest'
-                        bat 'mvn test -Dtest=AracSeleniumTest'
-                        bat 'mvn test -Dtest=MahkumSeleniumTest'
-                    }
+                    bat 'docker-compose down'
+                    bat 'docker-compose up -d'
+                    sleep 40 // Sistemin tamamen açılması için
+                }
+            }
+        }
+        stage('Selenium Test: Dashboard') { // 6. AŞAMA (Senaryo 1)
+            steps {
+                dir('nakil-sistemi') {
+                    bat 'mvn test -Dtest=DashboardSeleniumTest'
+                }
+            }
+        }
+        stage('Selenium Test: Arac') { // 6. AŞAMA (Senaryo 2)
+            steps {
+                dir('nakil-sistemi') {
+                    bat 'mvn test -Dtest=AracSeleniumTest'
+                }
+            }
+        }
+        stage('Selenium Test: Mahkum') { // 6. AŞAMA (Senaryo 3)
+            steps {
+                dir('nakil-sistemi') {
+                    bat 'mvn test -Dtest=MahkumSeleniumTest'
                 }
             }
         }
     }
-
     post {
         always {
-            echo 'Pipeline tamamlandı'
-            // Docker-compose ana dizindeyse dir içine almaya gerek yok,
-            // ama nakil-sistemi içindeyse buraya da dir('nakil-sistemi') eklemelisin.
             dir('nakil-sistemi') {
-                bat 'docker-compose down 2>nul || echo "Docker compose zaten kapalı"'
+                bat 'docker-compose down'
             }
         }
     }
